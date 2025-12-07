@@ -36,7 +36,7 @@ function split_merge_slow(o1, o2; normalize_spectrum=true, directional=false, ne
     return o1, o2, S.tensor.storage, norm_
 end
 
-inv_cutoff_func(x; cutoff=1e-6) = x < cutoff ? 0 : 1/x
+inv_cutoff_func(x; cutoff=1e-6) = x < cutoff ? 0.0 : 1/x
 isnan2(x) = sum(isnan.(x)) > 0
 function split_merge(o1, o2; cutoff=1e-6, directional=false, normalize_spectrum=true, new_dim=nothing)
     # https://arxiv.org/pdf/1808.00680
@@ -94,8 +94,8 @@ end
 
 
 
-function Smatrix(S, l)
-    inv_S = QuantumNaturalfPEPS.inv_cutoff_func.(S; cutoff=1e-6)
+function Smatrix(S, l;cutoff=1e-6)
+    inv_S = QuantumNaturalfPEPS.inv_cutoff_func.(S; cutoff=cutoff)
     Sinv = itensor(diagm(inv_S), l, l')
     S = itensor(diagm(S), l, l')
     return S, Sinv
@@ -261,6 +261,34 @@ function divide_on_split(o1, o2, S; directional=false)
         return o1, o2
     end
 end
+
+function multiply_spectra_horizontal_vertical!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; k=1, kwargs...)
+    # Compute Sx, Sy via super_orthonormalization
+    Sx, Sy, _, _, _ = QuantumNaturalfPEPS.super_orthonormalization!(peps; k=k, kwargs...)
+
+    # Horizontal bonds: multiply √Sx on both sides
+    for i in 1:size(peps,1)
+        for j in 1:size(peps,2)-1
+            l = commonind(peps[i,j], peps[i,j+1])
+            sqrtS = itensor(diagm(sqrt.(Sx[i,j,:])), l, l')
+            peps[i,j] = apply(peps[i,j], sqrtS)
+            peps[i,j+1] = apply(peps[i,j+1], sqrtS)
+        end
+    end
+
+    # Vertical bonds: multiply Sy directly on the upper tensor
+    for i in 1:size(peps,1)-1
+        for j in 1:size(peps,2)
+            l = commonind(peps[i,j], peps[i+1,j])
+            S = itensor(diagm(Sy[i,j,:]), l, l')
+            peps[i+1,j] = apply(peps[i+1,j], S)  # only upper layer
+        end
+    end
+
+    return peps
+end
+
+multiply_spectra_horizontal_vertical(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; kwargs...) = multiply_spectra_horizontal_vertical!(deepcopy(peps); kwargs...)
 
 function divide_by_spectrum!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; Sx=nothing, Sy=nothing, directional=false, horizontal=true, vertical=true, kwargs...)
     if Sx === nothing

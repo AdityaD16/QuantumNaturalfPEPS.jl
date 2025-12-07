@@ -300,7 +300,7 @@ function get_logψ_flipped(peps::AbstractPEPS, Ek_terms, env_top::Vector{Environ
     end
 
     if !isempty(other)
-        @warn "Only nearest and next nearest neighbour interactions are efficiently supported. Note that if the opertor is in he computational basis, any interaction length is possible."
+        # @warn "Only nearest and next nearest neighbour interactions are efficiently supported. Note that if the opertor is in he computational basis, any interaction length is possible."
         for flip_term in other
             if !haskey(logψ_flipped, flip_term)
                 sample_flipped = copy(sample)

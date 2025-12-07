@@ -51,6 +51,7 @@ end
 
 maxbonddim(peps::AbstractPEPS) = peps.bond_dim
 
+
 Base.size(peps::AbstractPEPS, args...) = size(peps.tensors, args...)
 Base.getindex(peps::AbstractPEPS, args...) = getindex(peps.tensors, args...)
 Base.setindex!(peps::AbstractPEPS, v, i::Int, j::Int) = (peps.tensors[i, j] = v)
@@ -118,6 +119,7 @@ end
 function write!(peps::AbstractPEPS, θ::Vector{T}; reset_double_layer=true, mask=peps.mask) where T# Writes the vector θ into the tensors.
     @assert eltype(peps) == T "The type of the PEPS is $(eltype(peps)) and the type of the vector θ is $T. They must be the same type."
     pos = 1
+
     for i in 1:size(peps, 1), j in 1:size(peps, 2)
         if mask[i,j] != 0
             shift = prod(dim.(inds(peps[i,j])))
@@ -126,7 +128,7 @@ function write!(peps::AbstractPEPS, θ::Vector{T}; reset_double_layer=true, mask
 
             # If peps is not in the right order define new tensor
             if inds(peps[i,j])[1] != siteind(peps, i, j) || inds(peps[i,j])[2:end] != linkinds(peps, i, j)
-                peps[i, j] = ITensor(θi, (siteind(peps, i, j), linkinds(peps, i, j)...))
+                peps[i, j] = ITensor(Array(θi), (siteind(peps, i, j), linkinds(peps, i, j)...))
             
             else # If in the right order, copy the values
                 peps[i, j][:] = reshape(θi, dim.(inds(peps[i,j])))
@@ -134,6 +136,7 @@ function write!(peps::AbstractPEPS, θ::Vector{T}; reset_double_layer=true, mask
             
         end
     end
+            # println("hey")
 
     if reset_double_layer
         peps.double_layer_envs = nothing
@@ -166,6 +169,7 @@ end
 # ->[]->
 #   |
 #   v
+
 function isoPEPS_tensor_init(::Type{S}, hilbert, bond_dim; tensor_init=random_unitary) where {S<:Number}
     Lx, Ly = size(hilbert)
 

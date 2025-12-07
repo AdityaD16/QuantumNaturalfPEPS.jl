@@ -28,7 +28,7 @@ function generate_Oks_and_Eks_threaded(peps::AbstractPEPS, ham_op::TensorOperato
 end
 
 function Oks_and_Eks_threaded(peps, ham_op, sample_nr; Oks=nothing, importance_weights=true,
-                              timer=TimerOutput(), nr_threads=Threads.nthreads(), seed=nothing,
+                              timer=TimerOutput(), nr_threads=Threads.nthreads(), seed=nothing,peps_preconditioner=(x,)->x,peps_postconditioner = (x,)->x,
                               return_Oks=true,
                               kwargs...)
     
@@ -58,6 +58,8 @@ function Oks_and_Eks_threaded(peps, ham_op, sample_nr; Oks=nothing, importance_w
     logpcs = Matrix{eltype_real}(undef, k, nr_threads)
     contract_dims = Matrix{Int}(undef, k, nr_threads)
     
+    peps = peps_preconditioner(peps) 
+
     seed = rand(UInt)
     Threads.@threads for i in 1:nr_threads
         Random.seed!(seed + i)
@@ -66,6 +68,9 @@ function Oks_and_Eks_threaded(peps, ham_op, sample_nr; Oks=nothing, importance_w
             _, Eks[j, i], logψs[j, i], samples[j, i], logpcs[j, i], contract_dims[j, i] = Ok_and_Ek(peps, ham_op; Ok, kwargs...)
         end
     end
+
+    peps = peps_postconditioner(peps)
+
     Eks = reshape(Eks, :)
     Oks = reshape(Oks, size(Oks, 1), :)
     logψs = reshape(logψs, :)

@@ -12,7 +12,7 @@ function generate_Oks_and_Eks(peps::AbstractPEPS, ham::OpSum; kwargs...)
 end
 
 function generate_Oks_and_Eks(peps::AbstractPEPS, ham_op::TensorOperatorSum; 
-                              threaded=false, multiproc=false, shared_array=true, async_double_layers=false, verbose=false,
+                              threaded=false, mpi =false,multiproc=false, shared_array=true, async_double_layers=false, verbose=false,
                               kwargs...)
     
     local double_layer_update, stop_thread
@@ -23,8 +23,11 @@ function generate_Oks_and_Eks(peps::AbstractPEPS, ham_op::TensorOperatorSum;
     end
 
     local Oks_and_Eks_func
-    
-    if multiproc
+
+    if mpi 
+        Oks_and_Eks_func = generate_Oks_and_Eks_mpi(peps, ham_op; threaded=threaded,
+            double_layer_update=double_layer_update, kwargs...)
+    elseif multiproc
         if shared_array
             Oks_and_Eks_func = generate_Oks_and_Eks_multiproc_sharedarrays(peps, ham_op; threaded, double_layer_update, kwargs...)
         else
@@ -76,7 +79,7 @@ function generate_Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOpe
 end
 
 # The central function is Oks and Eks
-function Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOperatorSum, sample_nr::Integer; timer=TimerOutput(), kwargs...)
+function Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOperatorSum, sample_nr::Integer; timer=TimerOutput(),peps_preconditioner=(x,)->x,peps_postconditioner = (x,)->x, kwargs...)
     eltype_ = eltype(peps)
     eltype_real = real(eltype_)
     
@@ -86,13 +89,14 @@ function Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOperatorSum,
     samples = Vector{Matrix{Int}}(undef, sample_nr)
     logpc = Vector{eltype_real}(undef, sample_nr)
     contract_dims = Vector{Int}(undef, sample_nr)
+    peps = peps_preconditioner(peps) 
 
     for i in 1:sample_nr
         Ok_view = @view Oks[:, i]
         _, Eks[i], logψs[i], samples[i], logpc[i], contract_dims[i] = Ok_and_Ek(peps, ham_op; timer, Ok=Ok_view, kwargs...)
         
     end
-    
+    peps = peps_postconditioner(peps)
     #return Ok, E_loc, logψ, samples, compute_importance_weights(logψ, logpc)
     Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs, :samples => samples, :weights => compute_importance_weights(logψs, logpc), :contract_dims => contract_dims)
     # returns Gradient, local Energy, log(<ψ|S>), samples S, p

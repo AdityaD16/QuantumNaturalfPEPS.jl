@@ -48,7 +48,7 @@ end
 
 # Computes the environments and log(<ψ|S>)
 function get_logψ_and_envs(peps::AbstractPEPS, S::Array{Int64,2}, env_top=Array{Environment}(undef, size(S,1)-1);
-                           alg="densitymatrix", overwrite=nothing, kwargs...)
+                           alg="densitymatrix", overwrite=nothing, gauge_iter = false, kwargs...)
     
     Lx = size(peps, 1)
     if overwrite === nothing
@@ -59,7 +59,11 @@ function get_logψ_and_envs(peps::AbstractPEPS, S::Array{Int64,2}, env_top=Array
     env_down = Array{Environment}(undef, size(peps, 1) - 1)
 
     peps_projected = get_projected(peps, S)
-    
+
+    if gauge_iter
+        multiply_spectra_horizontal_vertical!(peps_projected; k=1)
+    end
+
     if overwrite
         env_top[1] = generate_env_row(peps_projected[1, :], peps.contract_dim; alg, cutoff=peps.contract_cutoff)
     end
@@ -98,9 +102,8 @@ function generate_env_row(peps_projected, contract_dim; env_row_above=nothing, a
 end
 
 function get_logψ(env_top::Vector{Environment}, env_down::Vector{Environment}; pos=length(env_top)÷2)
-    #ψS = contract(env_top[pos].env.*env_down[end-pos+1].env)[1]
-    #logψS = log(Complex(ψS))
-    logψS = _log_or_not_dot(env_top[pos].env, env_down[end-pos+1].env, true; dag=false)
+    ψS = contract(env_top[pos].env.*env_down[end-pos+1].env)[1]
+    logψS = log(Complex(ψS))
     return logψS + env_top[pos].f + env_down[end-pos+1].f
 end
 
@@ -186,3 +189,7 @@ function get_4b_envs!(peps::AbstractPEPS, env_top::Vector{Environment}, env_down
         contract_recursiv!(fourb_envs_l, env_top[i-1].env, peps_i, c=peps_j, d=env_down[end-i].env, right_to_left=false)
     end
 end
+
+
+
+
