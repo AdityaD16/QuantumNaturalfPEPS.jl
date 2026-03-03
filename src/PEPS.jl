@@ -144,7 +144,6 @@ function write!(peps::AbstractPEPS, θ::Vector{T}; reset_double_layer=true, mask
 end
 
 ITensors.siteinds(type, Lx, Ly) = [siteind(type; addtags="nx=$i,ny=$j") for i in 1:Lx, j in 1:Ly]
-
 # initializes a PEPS
 PEPS(type, Lx::Int64, Ly::Int64; kwargs...) = PEPS(type, siteinds(type, Lx, Ly); kwargs...)
 function PEPS(::Type{S}, type, Lx::Int64, Ly::Int64; kwargs...) where {S<:Number}
@@ -297,7 +296,7 @@ sitedims(peps::AbstractPEPS) = [dim(siteind(peps, i, j)) for i in 1:size(peps, 1
 sitedims(peps::AbstractPEPS, i, j) = dim(siteind(peps, i, j))
 sitedim(peps::AbstractPEPS) = sitedims(peps, 1, 1)
 
-ITensors.linkinds(peps::AbstractPEPS, i, j) = filter!(!=(siteind(peps, i, j)), collect(inds(peps[i ,j])))
+linkinds(peps::AbstractPEPS, i, j) = filter!(!=(siteind(peps, i, j)), collect(inds(peps[i ,j])))
 
 ITensors.siteinds(peps::AbstractPEPS) = [siteind(peps, i, j) for i in 1:size(peps, 1), j in 1:size(peps, 2)]
 
@@ -468,3 +467,81 @@ function generate_vectors(peps, iPEPS, vector_type)
         throw(ArgumentError("Unrecognized vector_type: $vector_type"))
     end
 end
+
+
+# function PEPS(::Type{S}, hilbert::Matrix{Index{Vector{Pair{QN,Int64}}}}; bond_dim::Int64=1, tensor_init=U1_tensor_init, kwargs...) where {S<:Number}
+
+#     tensors = U1_PEPS_tensor_init(S,hilbert,bond_dim; tensor_init)
+
+#     return PEPS(tensors, bond_dim; kwargs...)
+# end
+
+
+
+
+
+# """
+#     U1_tensor_init(::Type{S}, ingoing_inds::Vector{Index}, outgoing_inds::Vector{Index}) where {S<:Number}
+
+# Constructs a random ITensor of type `S` with U(1) symmetry,
+# with ingoing and outgoing indices provided.
+# The total Sz is set to 0 (or some conserved value).
+# """
+# function U1_tensor_init(::Type{S}, ingoing_inds::Vector{Index}, outgoing_inds::Vector{Index}) where {S<:Number}
+#     inds = vcat(ingoing_inds, outgoing_inds)
+#     return randomITensor(QN("Sz", 0), inds...)
+# end
+
+
+# function U1_PEPS_tensor_init(::Type{S}, hilbert, bond_dim; tensor_init=U1_tensor_init, sectors=[(-1,1),(0,2),(1,1)]) where {S<:Number}
+#     Lx, Ly = size(hilbert)
+
+#     # --- Helper to make a U(1)-symmetric bond ---
+#     make_bond(tag) = Index((QN("Sz", q) => dim for (q, dim) in sectors)...; tags=tag)
+
+#     # --- Create horizontal and vertical virtual bonds ---
+#     h_links = Matrix{Index}(undef, Lx, Ly-1)
+#     v_links = Matrix{Index}(undef, Lx-1, Ly)
+
+#     for i in 1:Lx, j in 1:Ly-1
+#         h_links[i,j] = make_bond("h,$i,$j")
+#     end
+#     for i in 1:Lx-1, j in 1:Ly
+#         v_links[i,j] = make_bond("v,$i,$j")
+#     end
+
+#     # --- Initialize tensors ---
+#     tensors = Array{ITensor}(undef, Lx, Ly)
+#     for i in 1:Lx, j in 1:Ly
+#         ingoing_inds = Index[]
+#         outgoing_inds = Index[]
+
+#         # physical index
+#         push!(ingoing_inds, hilbert[i,j])
+
+#         # right
+#         if j != Ly
+#             push!(outgoing_inds, h_links[i,j])
+#         end
+
+#         # down
+#         if i != Lx
+#             push!(outgoing_inds, v_links[i,j])
+#         end
+
+#         # left
+#         if j != 1
+#             push!(ingoing_inds, h_links[i,j-1])
+#         end
+
+#         # up
+#         if i != 1
+#             push!(ingoing_inds, v_links[i-1,j])
+#         end
+
+#         # construct tensor
+#         tensors[i,j] = tensor_init(S, ingoing_inds, outgoing_inds)
+#     end
+
+#     return tensors
+# end

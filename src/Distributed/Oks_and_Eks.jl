@@ -5,6 +5,12 @@ function compute_importance_weights(logψs, logpcs)
     return exp.(log_ratios .- logZ)
 end
 
+function compute_KL_divergence(logψs, logpcs)
+    ws = compute_importance_weights(logψs, logpcs)
+    KL = -mean(log.(ws))
+    return KL, Neff
+end
+# thr
 function generate_Oks_and_Eks(peps::AbstractPEPS, ham::OpSum; kwargs...)
     hilbert = siteinds(peps)
     ham_op = TensorOperatorSum(ham, hilbert)
@@ -87,18 +93,18 @@ function Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOperatorSum,
     Eks = Vector{eltype_}(undef, sample_nr)
     logψs = Vector{Complex{eltype_real}}(undef, sample_nr)
     samples = Vector{Matrix{Int}}(undef, sample_nr)
-    logpc = Vector{eltype_real}(undef, sample_nr)
+    logpcs = Vector{eltype_real}(undef, sample_nr)
     contract_dims = Vector{Int}(undef, sample_nr)
     peps = peps_preconditioner(peps) 
 
     for i in 1:sample_nr
         Ok_view = @view Oks[:, i]
-        _, Eks[i], logψs[i], samples[i], logpc[i], contract_dims[i] = Ok_and_Ek(peps, ham_op; timer, Ok=Ok_view, kwargs...)
+        _, Eks[i], logψs[i], samples[i], logpcs[i], contract_dims[i] = Ok_and_Ek(peps, ham_op; timer, Ok=Ok_view, kwargs...)
         
     end
     peps = peps_postconditioner(peps)
     #return Ok, E_loc, logψ, samples, compute_importance_weights(logψ, logpc)
-    Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs, :samples => samples, :weights => compute_importance_weights(logψs, logpc), :contract_dims => contract_dims)
+    Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs, :samples => samples, :weights => compute_importance_weights(logψs, logpcs), :contract_dims => contract_dims)
     # returns Gradient, local Energy, log(<ψ|S>), samples S, p
 end
 

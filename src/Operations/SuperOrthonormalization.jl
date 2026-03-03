@@ -262,33 +262,7 @@ function divide_on_split(o1, o2, S; directional=false)
     end
 end
 
-function multiply_spectra_horizontal_vertical!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; k=1, kwargs...)
-    # Compute Sx, Sy via super_orthonormalization
-    Sx, Sy, _, _, _ = QuantumNaturalfPEPS.super_orthonormalization!(peps; k=k, kwargs...)
 
-    # Horizontal bonds: multiply √Sx on both sides
-    for i in 1:size(peps,1)
-        for j in 1:size(peps,2)-1
-            l = commonind(peps[i,j], peps[i,j+1])
-            sqrtS = itensor(diagm(sqrt.(Sx[i,j,:])), l, l')
-            peps[i,j] = apply(peps[i,j], sqrtS)
-            peps[i,j+1] = apply(peps[i,j+1], sqrtS)
-        end
-    end
-
-    # Vertical bonds: multiply Sy directly on the upper tensor
-    for i in 1:size(peps,1)-1
-        for j in 1:size(peps,2)
-            l = commonind(peps[i,j], peps[i+1,j])
-            S = itensor(diagm(Sy[i,j,:]), l, l')
-            peps[i+1,j] = apply(peps[i+1,j], S)  # only upper layer
-        end
-    end
-
-    return peps
-end
-
-multiply_spectra_horizontal_vertical(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; kwargs...) = multiply_spectra_horizontal_vertical!(deepcopy(peps); kwargs...)
 
 function divide_by_spectrum!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; Sx=nothing, Sy=nothing, directional=false, horizontal=true, vertical=true, kwargs...)
     if Sx === nothing

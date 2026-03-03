@@ -11,17 +11,11 @@ using MPI
 
 using LinearAlgebra
 using ITensors
-
+using ITensorMPS
 using QuantumNaturalGradient: TensorOperatorSum, Parameters
 using QuantumNaturalGradient
 
-
-const ZtoY = (1/sqrt(2)) * [1 1; 1 -1] * [1 0; 0 -1im]
-const YtoZ = [1 0; 0 1im] * (1/sqrt(2)) * [1 1; 1 -1]
-
-ITensors.op(::OpName"ZtoY", ::SiteType"Qubit") = ZtoY
-ITensors.op(::OpName"YtoZ", ::SiteType"Qubit") = YtoZ
-
+include("compat.jl")
 include("misc.jl")
 include("tensor_ops.jl")
 include("mps_ops.jl")
@@ -34,11 +28,12 @@ include("Ek.jl")
 include("Ok_and_Ek.jl")
 include("Observables.jl")
 include("Hamiltonians.jl")
-
+include("simple_update.jl")
 include("Operations/Operations.jl")
 include("Properties/Properties.jl")
 include("Distributed/Distributed.jl")
 include("Test.jl")
+include("custom_ops.jl")
 
 
 export PEPS

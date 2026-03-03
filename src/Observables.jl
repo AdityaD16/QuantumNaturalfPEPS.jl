@@ -16,8 +16,8 @@ function get_ExpectationValue(peps::AbstractPEPS, O; it=100, threaded=false, mul
         #get_ExpectationValues_singlethread(peps, [O_op[1]]; it=1)
         return get_ExpectationValues_multiproc(peps, O_op; it)
     elseif threaded
-        get_ExpectationValues_singlethread(peps, [O_op[1]]; it=1)
-        return get_ExpectationValues_multithread(peps, O_op; it)
+        out = get_ExpectationValues_multithread(peps, O_op; it)
+    return out[:Obs], compute_importance_weights(out[:logψs], out[:logpcs])
     else
         return get_ExpectationValues_singlethread(peps, O_op; it)
     end
