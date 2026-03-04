@@ -12,6 +12,7 @@ function get_ExpectationValue(peps::AbstractPEPS, O; it=100, threaded=false, mul
             O_op[i] = TensorOperatorSum(O[i], hilbert)
         end
     end
+    update_double_layer_envs!(peps)
     if multiproc
         #get_ExpectationValues_singlethread(peps, [O_op[1]]; it=1)
         return get_ExpectationValues_multiproc(peps, O_op; it)
