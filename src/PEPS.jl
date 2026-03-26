@@ -136,7 +136,6 @@ function write!(peps::AbstractPEPS, θ::Vector{T}; reset_double_layer=true, mask
             
         end
     end
-            # println("hey")
 
     if reset_double_layer
         peps.double_layer_envs = nothing

@@ -91,6 +91,9 @@ function Oks_and_Eks_multiproc_sharedarrays(peps, ham_op, sample_nr; Oks=nothing
 
     if importance_weights
         weights = compute_importance_weights(logψs, logpcs)
+        if eltype(weights) != eltype_real
+            weights = convert(Vector{eltype_real}, weights)
+        end
     else
         weights = logpcs
     end

@@ -67,17 +67,17 @@ function get_logψ_and_envs(peps::AbstractPEPS, S::Array{Int64,2}, env_top=Array
     end
 
     if overwrite
-        env_top[1] = generate_env_row(peps_projected[1, :], peps.contract_dim; alg, cutoff=peps.contract_cutoff)
+        env_top[1] = generate_env_row(peps_projected[1, :], peps.contract_dim; alg, cutoff=peps.contract_cutoff, kwargs...)
     end
-    env_down[1] = generate_env_row(peps_projected[Lx, :], peps.contract_dim; alg, cutoff=peps.contract_cutoff)
+    env_down[1] = generate_env_row(peps_projected[Lx, :], peps.contract_dim; alg, cutoff=peps.contract_cutoff, kwargs...)
     
     # for every row we calculate the environments once from the top down and once from the bottom up
     for i in 2:Lx-1
         i_prime = Lx+1-i 
         if overwrite
-            env_top[i] = generate_env_row(peps_projected[i, :], peps.contract_dim; env_row_above=env_top[i-1], alg, cutoff=peps.contract_cutoff)
+            env_top[i] = generate_env_row(peps_projected[i, :], peps.contract_dim; env_row_above=env_top[i-1], alg, cutoff=peps.contract_cutoff, kwargs...)
         end
-        env_down[i] = generate_env_row(peps_projected[i_prime, :], peps.contract_dim; env_row_above=env_down[i-1], alg, cutoff=peps.contract_cutoff)
+        env_down[i] = generate_env_row(peps_projected[i_prime, :], peps.contract_dim; env_row_above=env_down[i-1], alg, cutoff=peps.contract_cutoff, kwargs...)
     end
 
     # Check if maximal bond dimension is reached
@@ -87,16 +87,21 @@ function get_logψ_and_envs(peps::AbstractPEPS, S::Array{Int64,2}, env_top=Array
     end
     
     # once we calculated all environments we calculate <ψ|S> using the environments
-    return get_logψ(env_top, env_down; kwargs...), env_top, env_down, max_bond
+    pos = get(kwargs, :pos, length(env_top) ÷ 2)
+    return get_logψ(env_top, env_down; pos=pos), env_top, env_down, max_bond
 end
 
 # calculates the environments for a given row and contracts that with env_row_above
-function generate_env_row(peps_projected, contract_dim; env_row_above=nothing, alg="densitymatrix", cutoff=1e-13)
+function generate_env_row(peps_projected, contract_dim; env_row_above=nothing, alg="densitymatrix", cutoff=1e-13, kwargs...)
     norm_shift = 0
     if env_row_above === nothing
         peps_projected = MPS(peps_projected)
     else
-        peps_projected = contract(MPO(peps_projected), env_row_above.env; maxdim=contract_dim, alg, cutoff)
+        if alg=="fit"
+            peps_projected = ITensorMPS.contract(MPO(peps_projected), env_row_above.env; maxdim=contract_dim,nsweeps=1, alg="fit", cutoff=cutoff)
+        else
+            peps_projected = contract(MPO(peps_projected), env_row_above.env; maxdim=contract_dim, alg, cutoff=cutoff)
+        end
         norm_shift = env_row_above.f
     end
 

@@ -89,7 +89,9 @@ function Oks_and_Eks_threaded(peps, ham_op, sample_nr; Oks=nothing, importance_w
     contract_dims = reshape(contract_dims, :)
     
     if importance_weights
-        weights = compute_importance_weights(logψs, logpcs)
+        if eltype(weights) != eltype_real
+            weights = convert(Vector{eltype_real}, weights)
+        end
     else
         weights = logpcs
     end

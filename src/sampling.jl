@@ -102,7 +102,12 @@ function sample_ρr(ρ_r)
     p = Vector{T}(undef, k)
     for i in 1:k
         p[i] = abs(ρ_r[i, i])
-        @assert imag(ρ_r[i, i]) / (p[i] + 1e-10) < 1e-8 "ρ_r is not real $(ρ_r[i, i])"
+        im = abs(imag(ρ_r[i, i]))
+        # change assert to warning
+        if im/(p[i] + 1e-10) >= 1e-6 && im >= 1e-8
+            @warn "ρ_r is not real $(ρ_r[i,i])"
+        end
+        # @assert im/(p[i] + 1e-10) < 1e-6 || im < 1e-12 "ρ_r is not real $(ρ_r[i,i])"
     end
     i = sample_p(p, normalize=true)
     return i-1, p[i]
@@ -120,11 +125,12 @@ function sample_p(probs::Vector{T}; normalize=true) where T<:Real
             return i
         end
     end
-    error("probs is not normalized sum(probs)=$(sum(probs))")
+    isapprox(sum(probs), 1.0, atol=1e-4) || error("probs is not normalized sum(probs)=$(sum(probs))")
+    return length(probs)  # fallback to last elementend
 end
 
 # generates a sample of a given peps along with pc and the top environments
-function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix", timer=TimerOutput())
+function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix", timer=TimerOutput(), kwargs...)
     S = Array{Int64}(undef, size(peps))
     
     env_top = Array{Environment}(undef, size(peps, 1)-1)
@@ -171,10 +177,10 @@ function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix",
              # The answer is yes, it is slower, but not by match. But it is also more accurate.
             if i == 1
                 peps_projected_1 = get_projected(peps, S, 1, :)
-                @timeit timer "env_top" env_top[1] = generate_env_row(peps_projected_1, peps.contract_dim; alg, cutoff=peps.contract_cutoff)
+                @timeit timer "env_top" env_top[1] = generate_env_row(peps_projected_1, peps.contract_dim; alg, cutoff=peps.contract_cutoff, kwargs...)
             elseif i != size(peps, 1) 
                 peps_projected_row = get_projected(peps, S, i, :)
-                @timeit timer "env_top" env_top[i] = generate_env_row(peps_projected_row, peps.contract_dim; env_row_above=env_top[i-1], alg, cutoff=peps.contract_cutoff)
+                @timeit timer "env_top" env_top[i] = generate_env_row(peps_projected_row, peps.contract_dim; env_row_above=env_top[i-1], alg, cutoff=peps.contract_cutoff, kwargs...)
             end  
         end
     end

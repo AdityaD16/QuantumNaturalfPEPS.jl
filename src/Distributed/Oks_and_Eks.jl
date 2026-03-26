@@ -104,7 +104,11 @@ function Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOperatorSum,
     end
     peps = peps_postconditioner(peps)
     #return Ok, E_loc, logψ, samples, compute_importance_weights(logψ, logpc)
-    Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs, :samples => samples, :weights => compute_importance_weights(logψs, logpcs), :contract_dims => contract_dims)
+    weights =  compute_importance_weights(logψs, logpcs)
+    if eltype(weights) != eltype_real
+        weights = convert(Vector{eltype_real}, weights)
+    end
+    Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs, :samples => samples, :weights => weights, :contract_dims => contract_dims)
     # returns Gradient, local Energy, log(<ψ|S>), samples S, p
 end
 

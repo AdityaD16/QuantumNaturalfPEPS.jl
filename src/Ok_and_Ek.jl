@@ -1,11 +1,11 @@
 # Calculates the Energy and Gradient of a given peps and hamiltonian
 function Ok_and_Ek(peps::AbstractPEPS, ham_op; timer=TimerOutput(), Ok=nothing, sampling_mode=:full,
-                   resample=false, correct_sampling_error=true, resample_energy=0,gauge_iter=false# TODO: remove
+                   resample=false, correct_sampling_error=true, resample_energy=0,gauge_iter=false,alg="densitymatrix"# TODO: remove
                    )
     # println("Inside Ok_and_Ek")
     # peps = peps_preconditioner(peps) 
     # println("After preconditioner")
-    S, logpc, env_top = @timeit timer "sampling" get_sample(peps; mode=sampling_mode, timer) # draw a sample
+    S, logpc, env_top = @timeit timer "sampling" get_sample(peps; mode=sampling_mode, timer,alg=alg) # draw a sample
     
     if resample
         S = QuantumNaturalGradient.resample_with_H(S, ham_op; resample_energy)
@@ -13,7 +13,7 @@ function Ok_and_Ek(peps::AbstractPEPS, ham_op; timer=TimerOutput(), Ok=nothing, 
     # If sampling_mode is full, we do not need to overwrite the the top environments as they are already computed accurately
     overwrite = !(sampling_mode == :full)
 
-    logψ, env_top, env_down, max_bond = @timeit timer "vertical_envs" get_logψ_and_envs(peps, S, env_top; overwrite,gauge_iter) # compute the environments of the peps according to that sample
+    logψ, env_top, env_down, max_bond = @timeit timer "vertical_envs" get_logψ_and_envs(peps, S, env_top; overwrite,gauge_iter,alg=alg) # compute the environments of the peps according to that sample
     h_envs_r, h_envs_l = @timeit timer "horizontal_envs" get_all_horizontal_envs(peps, env_top, env_down, S) # computes the horizontal environments of the already sampled peps
     
     # initialize the flipped logψ dictionary, will be used to compute other observables or for the resampling
