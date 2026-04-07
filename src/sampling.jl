@@ -80,7 +80,7 @@ end
 function get_reduced_ρ(ket_j, bra_j, peps, i, j, E, sigma)
    
     if i != size(peps, 1)
-        uncombined_double_layer = peps.double_layer_envs[i].env[j]
+        # uncombined_double_layer = peps.double_layer_envs[i].env[j]
         sigma = sigma * ket_j * peps.double_layer_envs[i].env[j] * bra_j
     else
         sigma = sigma * ket_j * bra_j
