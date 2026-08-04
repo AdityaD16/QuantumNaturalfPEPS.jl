@@ -30,7 +30,7 @@ function generate_Oks_and_Eks(peps::AbstractPEPS, ham_op::TensorOperatorSum;
 
     local Oks_and_Eks_func
 
-    if mpi 
+    if mpi # Fix it to work with mpi, currently it is just a placeholder and does not work
         Oks_and_Eks_func = generate_Oks_and_Eks_mpi(peps, ham_op; threaded=threaded,
             double_layer_update=double_layer_update, kwargs...)
     elseif multiproc
@@ -97,6 +97,7 @@ function Oks_and_Eks_singlethread(peps::AbstractPEPS, ham_op::TensorOperatorSum,
     contract_dims = Vector{Int}(undef, sample_nr)
     peps = peps_preconditioner(peps) 
 
+    #update double layer envs once before sampling
     for i in 1:sample_nr
         Ok_view = @view Oks[:, i]
         _, Eks[i], logψs[i], samples[i], logpcs[i], contract_dims[i] = Ok_and_Ek(peps, ham_op; timer, Ok=Ok_view, kwargs...)

@@ -50,7 +50,7 @@ end
 
 # Computes the environments and log(<ψ|S>)
 function get_logψ_and_envs(peps::AbstractPEPS, S::Array{Int64,2}, env_top=Array{Environment}(undef, size(S,1)-1);
-                           alg="densitymatrix", overwrite=nothing, gauge_iter = false, kwargs...)
+                           alg="densitymatrix", overwrite=nothing, kwargs...)
     
     Lx = size(peps, 1)
     if overwrite === nothing
@@ -61,10 +61,6 @@ function get_logψ_and_envs(peps::AbstractPEPS, S::Array{Int64,2}, env_top=Array
     env_down = Array{Environment}(undef, size(peps, 1) - 1)
 
     peps_projected = get_projected(peps, S)
-
-    if gauge_iter
-        multiply_spectra_horizontal_vertical!(peps_projected; k=1)
-    end
 
     if overwrite
         env_top[1] = generate_env_row(peps_projected[1, :], peps.contract_dim; alg, cutoff=peps.contract_cutoff, kwargs...)

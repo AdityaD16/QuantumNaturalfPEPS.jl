@@ -151,7 +151,7 @@ function ITensors.apply(A::ITensor, B::Vector)
 end
 
 function split_merge!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; split_merge_=split_merge, new_dim=maxbonddim(peps),
-                      top_bottom_direction=false, left_right_direction=false, vidal=false, kwargs...)
+                      top_bottom_direction=false, left_right_direction=false, vidal=false, swap_direction=false, kwargs...)
     Sx = ones(size(peps, 1)-1, size(peps, 2), new_dim)
     Sy = ones(size(peps, 1), size(peps, 2)-1, new_dim)
     lognorm = 0
@@ -163,7 +163,11 @@ function split_merge!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; sp
                 peps[i, j] = apply(peps[i, j], Ssqrts_1)
                 peps[i+1, j] = apply(peps[i+1, j], Ssqrts_2)
             end
-            peps[i, j], peps[i+1, j], S, norm_ = split_merge_(peps[i, j], peps[i+1, j]; new_dim, directional=top_bottom_direction, kwargs...)
+            if swap_direction
+                peps[i+1, j], peps[i, j], S, norm_ = split_merge_(peps[i+1, j], peps[i, j]; new_dim, directional=top_bottom_direction, kwargs...)
+            else
+                peps[i, j], peps[i+1, j], S, norm_ = split_merge_(peps[i, j], peps[i+1, j]; new_dim, directional=top_bottom_direction, kwargs...)
+            end
             lognorm += log(norm_)
             Sx[i, j, :] .= S
             if vidal
@@ -178,7 +182,11 @@ function split_merge!(peps::Union{QuantumNaturalfPEPS.PEPS, Matrix{ITensor}}; sp
                 peps[i, j] = apply(peps[i, j], Ssqrts_1)
                 peps[i, j+1] = apply(peps[i, j+1], Ssqrts_2)
             end
-            peps[i, j], peps[i, j+1], S, norm_ = split_merge_(peps[i, j], peps[i, j+1]; new_dim, directional=left_right_direction, kwargs...)
+            if swap_direction
+                peps[i, j+1], peps[i, j], S, norm_ = split_merge_(peps[i, j+1], peps[i, j]; new_dim, directional=left_right_direction, kwargs...)
+            else
+                peps[i, j], peps[i, j+1], S, norm_ = split_merge_(peps[i, j], peps[i, j+1]; new_dim, directional=left_right_direction, kwargs...)
+            end
             lognorm += log(norm_)
             Sy[i, j, :] .= S
             if vidal

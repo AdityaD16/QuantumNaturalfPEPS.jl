@@ -3,7 +3,6 @@ function exp_update(p, t, factor=0.1)
 end
 
 function basis_change!(peps, ops::Array{ITensor, 2})
-    peps = deepcopy(peps)
     for i in 1:size(peps, 1), j in 1:size(peps, 2)
         peps.tensors[i, j] = noprime(peps[i, j] * ops[i, j])
     end
@@ -23,6 +22,8 @@ function basis_change!(peps; gate="H", kwargs...)
     for i in 1:size(peps, 1)
         for j in 1:size(peps, 2)
             U = op(gate, siteind(peps, i, j); kwargs...)
+            T = eltype(peps[i, j])
+            U = ITensors.adapt(T, U)
             peps.tensors[i, j] = noprime(peps[i, j] * U)
         end
     end

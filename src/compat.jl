@@ -9,7 +9,12 @@ function _patch_itensors_generic_tagset()
     end
 end
 
-function __init__()
-    _patch_itensors_generic_tagset()
-    return nothing
-end
+# function __init__()
+#     # _patch_itensors_generic_tagset()
+#     # Quad-layer contractions for interior middle-row sites (Lx≥3) produce
+#     # 14-index intermediates as a structural lower bound: h_l(0,1,2,3) +
+#     # h_r(0,1,2,3) + v_up(0,1,2,3) + 2 MPS bonds = 14.  Raise the threshold
+#     # to 15 so the warning still fires for genuinely unexpected cases.
+#     ITensors.set_warn_order(15)
+#     return nothing
+# end

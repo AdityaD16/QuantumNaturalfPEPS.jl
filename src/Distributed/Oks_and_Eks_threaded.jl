@@ -58,7 +58,7 @@ function Oks_and_Eks_threaded(peps, ham_op, sample_nr; Oks=nothing, importance_w
     logpcs = Matrix{eltype_real}(undef, k, nr_threads)
     contract_dims = Matrix{Int}(undef, k, nr_threads)
     
-    peps = peps_preconditioner(peps) 
+    peps = peps_preconditioner(peps)
 
     seed = rand(UInt)
     Threads.@threads for i in 1:nr_threads
@@ -89,6 +89,7 @@ function Oks_and_Eks_threaded(peps, ham_op, sample_nr; Oks=nothing, importance_w
     contract_dims = reshape(contract_dims, :)
     
     if importance_weights
+        weights = compute_importance_weights(logψs, logpcs)
         if eltype(weights) != eltype_real
             weights = convert(Vector{eltype_real}, weights)
         end

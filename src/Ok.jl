@@ -43,6 +43,15 @@ function get_Ok(peps::AbstractPEPS, env_top::Vector{Environment}, env_down::Vect
     for i in 1:size(peps, 1), j in 1:size(peps, 2)
         if mask[i,j] != 0
             ok_tensor = get_Ok(peps, env_top, env_down, logψ, h_envs_r, h_envs_l, i, j)
+
+            # QN path: gradient lives in the same block layout as vec_qn (Symmetric.jl)
+            if hasqns(peps[i, j])
+                n = tensor_nparams(peps[i, j])
+                flatten_site_gradient!((@view Ok[pos:pos+n-1]), peps, ok_tensor, S, i, j)
+                pos += n
+                continue
+            end
+
             # lastly we reshape the tensor to a vector to obtain the gradient
             shift = prod(dim.(inds(ok_tensor)))
             loc_dim = dim(siteind(peps, i,j))

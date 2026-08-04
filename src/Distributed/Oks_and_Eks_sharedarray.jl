@@ -23,7 +23,6 @@ function generate_Oks_and_Eks_multiproc_sharedarrays(peps::AbstractPEPS, ham_op:
         if getfield(peps_, :double_layer_envs) === nothing
             @timeit timer "double_layer_envs" double_layer_update(peps_)
         end
-
         if length(kwargs2) > 0
             kwargs = merge(kwargs, kwargs2)
         end
@@ -33,10 +32,16 @@ function generate_Oks_and_Eks_multiproc_sharedarrays(peps::AbstractPEPS, ham_op:
     return Oks_and_Eks_
 end
 
-function Oks_and_Eks_multiproc_sharedarrays(peps, ham_op, sample_nr; Oks=nothing, importance_weights=true, 
+function Oks_and_Eks_multiproc_sharedarrays(peps, ham_op, sample_nr; Oks=nothing, importance_weights=true,
                                n_threads=Distributed.remotecall_fetch(()->Threads.nthreads(), workers()[1]),
                                timer=TimerOutput(),
+                               peps_preconditioner=(x,)->x, peps_postconditioner=(x,)->x,
                                kwargs...)
+                               
+
+    # Apply pre/post-conditioners once here rather than once per worker.
+    peps = peps_preconditioner(peps)
+
     nr_procs = length(workers())
     k = ceil(Int, sample_nr / nr_procs)
     k_thread = ceil(Int, k / n_threads)
@@ -56,6 +61,7 @@ function Oks_and_Eks_multiproc_sharedarrays(peps, ham_op, sample_nr; Oks=nothing
     end
 
     # TODO: Send ham_op only once through the network
+    # Workers receive the already-preconditioned peps; pass identity pre/post-conditioners.
     out = []
     @timeit timer "dispatch jobs" for (i, w) in enumerate(workers())
         i1 = k_eff * (i - 1) + 1
@@ -64,7 +70,9 @@ function Oks_and_Eks_multiproc_sharedarrays(peps, ham_op, sample_nr; Oks=nothing
         task = Distributed.remotecall(
             () -> Oks_and_Eks_threaded(peps, ham_op, k;
                                         importance_weights=false, seed=seed + w,
-                                        nr_threads=n_threads, Oks=Oks_, return_Oks=false, kwargs...),
+                                        nr_threads=n_threads, Oks=Oks_, return_Oks=false,
+                                        peps_preconditioner=(x,)->x, peps_postconditioner=(x,)->x,
+                                        kwargs...),
             w)
         push!(out, task)
     end
@@ -98,6 +106,9 @@ function Oks_and_Eks_multiproc_sharedarrays(peps, ham_op, sample_nr; Oks=nothing
         weights = logpcs
     end
     @everywhere GC.gc() # Force garbage collection of the shared arrays on the remote workers.
+
+    peps = peps_postconditioner(peps)
+
     return Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs,
                 :samples => samples, :weights => weights, :contract_dims => contract_dims)
 end

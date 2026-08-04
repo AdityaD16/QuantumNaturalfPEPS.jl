@@ -14,7 +14,12 @@ function permute_and_copy!(dest, tensor::NDTensors.DenseTensor, target_indices)
     return permutedims!(dest, s, perm)
 end
 
-max_norm(x::ITensor) = maximum(abs, x.tensor)
+# reduce over the stored data vector: works for both Dense and BlockSparse
+# (maximum(abs, blocksparsetensor) hits an NDTensors reduction bug for complex eltype)
+function max_norm(x::ITensor)
+    d = NDTensors.data(ITensors.tensor(x))
+    return isempty(d) ? zero(real(eltype(x))) : maximum(abs, d)
+end
 
 permute_reshape_and_copy!(dest, tensor::ITensor, target_indices) = permute_reshape_and_copy!(dest, tensor.tensor, target_indices)
 

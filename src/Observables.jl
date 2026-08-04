@@ -1,4 +1,4 @@
-function get_ExpectationValue(peps::AbstractPEPS, O; it=100, threaded=false, multiproc=false)
+function get_ExpectationValue(peps::AbstractPEPS, O; it=100, threaded=false, multiproc=false, max_counts=nothing)
     hilbert = siteinds(peps)
     if !(O isa Vector)
         O = [O]
@@ -15,16 +15,16 @@ function get_ExpectationValue(peps::AbstractPEPS, O; it=100, threaded=false, mul
     update_double_layer_envs!(peps)
     if multiproc
         #get_ExpectationValues_singlethread(peps, [O_op[1]]; it=1)
-        return get_ExpectationValues_multiproc(peps, O_op; it)
+        return get_ExpectationValues_multiproc(peps, O_op; it, max_counts)
     elseif threaded
-        out = get_ExpectationValues_multithread(peps, O_op; it)
+        out = get_ExpectationValues_multithread(peps, O_op; it, max_counts)
     return out[:Obs], compute_importance_weights(out[:logψs], out[:logpcs])
     else
-        return get_ExpectationValues_singlethread(peps, O_op; it)
+        return get_ExpectationValues_singlethread(peps, O_op; it, max_counts)
     end
 end
 
-function get_ExpectationValues_multithread(peps, O_op; it=100)
+function get_ExpectationValues_multithread(peps, O_op; it=100, max_counts=nothing)
     nr_threads = Threads.nthreads()
     k = ceil(Int, it / nr_threads)
     
@@ -37,26 +37,26 @@ function get_ExpectationValues_multithread(peps, O_op; it=100)
             Obser = @view Obs[slice, :]
             logψ_thread = @view logψs[slice]
             logpc_thread = @view logpcs[slice]
-            get_ExpectationValues!(peps, O_op, Obser, logψ_thread, logpc_thread; it=k)
+            get_ExpectationValues!(peps, O_op, Obser, logψ_thread, logpc_thread; it=k, max_counts)
     end
 
     #return Obs, logψs, logpcs
     return Dict(:Obs => Obs, :logψs => logψs, :logpcs => logpcs)
 end
 
-function get_ExpectationValues_singlethread(peps, O_op; it=100)
+function get_ExpectationValues_singlethread(peps, O_op; it=100, max_counts=nothing)
     O_loc = Array{Complex}(undef, it, length(O_op))
     logψ = Array{Complex}(undef, it)
     logpc = Array{Complex}(undef, it)
-    
-    get_ExpectationValues!(peps, O_op, O_loc, logψ, logpc; it)
+
+    get_ExpectationValues!(peps, O_op, O_loc, logψ, logpc; it, max_counts)
     return O_loc, compute_importance_weights(logψ, logpc)
 end
 
-function get_ExpectationValues!(peps, O_op, Observable, logψ, logpc; it=100)
+function get_ExpectationValues!(peps, O_op, Observable, logψ, logpc; it=100, max_counts=nothing)
 
     for i in 1:it
-        S, logpc[i], env_top = get_sample(peps)
+        S, logpc[i], env_top = get_sample(peps; max_counts)
 
         logψ[i], env_top, env_down, max_bond = get_logψ_and_envs(peps, S, env_top) 
         h_envs_r, h_envs_l = get_all_horizontal_envs(peps, env_top, env_down, S)
@@ -72,7 +72,7 @@ function get_ExpectationValues!(peps, O_op, Observable, logψ, logpc; it=100)
     return Observable, logψ, logpc
 end
 
-function get_ExpectationValues_multiproc(peps, O_op; it=100, 
+function get_ExpectationValues_multiproc(peps, O_op; it=100, max_counts=nothing,
     n_threads=Distributed.remotecall_fetch(()->Threads.nthreads(), workers()[1]),
     kwargs...)
 
@@ -82,7 +82,7 @@ function get_ExpectationValues_multiproc(peps, O_op; it=100,
     k_eff = k_thread * n_threads
     sample_nr_eff = k_eff * nr_procs
 
-    out = [Distributed.remotecall(() -> get_ExpectationValues_multithread(peps, O_op; it=k), w) for w in workers()]
+    out = [Distributed.remotecall(() -> get_ExpectationValues_multithread(peps, O_op; it=k, max_counts), w) for w in workers()]
 
     Obs = Matrix{ComplexF64}(undef, sample_nr_eff, length(O_op))
     logψs = Vector{ComplexF64}(undef, sample_nr_eff)

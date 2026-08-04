@@ -26,10 +26,13 @@ function generate_Oks_and_Eks_multiproc(peps::AbstractPEPS, ham_op::TensorOperat
     return Oks_and_Eks_
 end
 
-function Oks_and_Eks_multiproc(peps, ham_op, sample_nr; Oks=nothing, importance_weights=true, 
+function Oks_and_Eks_multiproc(peps, ham_op, sample_nr; Oks=nothing, importance_weights=true,
                                n_threads=Distributed.remotecall_fetch(()->Threads.nthreads(), workers()[1]),
                                timer=TimerOutput(),
-                               kwargs...)
+                               peps_preconditioner=(x,)->x, peps_postconditioner=(x,)->x, kwargs...)
+
+    # Apply pre/post-conditioners once here rather than once per worker.
+    peps = peps_preconditioner(peps)
 
     nr_procs = length(workers())
     k = ceil(Int, sample_nr / nr_procs)
@@ -40,8 +43,9 @@ function Oks_and_Eks_multiproc(peps, ham_op, sample_nr; Oks=nothing, importance_
 
     seed = rand(UInt)
     # TODO: Send ham_op only once through the network
-    out = [Distributed.remotecall(() -> Oks_and_Eks_threaded(peps, ham_op, k; importance_weights=false, seed=seed + w, kwargs...), w) for w in workers()]
-    
+    # Workers receive the already-preconditioned peps; pass identity pre/post-conditioners.
+    out = [Distributed.remotecall(() -> Oks_and_Eks_threaded(peps, ham_op, k; importance_weights=false, seed=seed + w,
+                                                             peps_preconditioner=(x,)->x, peps_postconditioner=(x,)->x, kwargs...), w) for w in workers()]    
     eltype_ = eltype(peps)
     eltype_real = real(eltype_)
     
@@ -70,5 +74,7 @@ function Oks_and_Eks_multiproc(peps, ham_op, sample_nr; Oks=nothing, importance_
         weights = logpcs
     end
     
+    peps = peps_postconditioner(peps)
+
     return Dict(:Oks => transpose(Oks), :Eks => Eks, :logψs => logψs, :samples => samples, :weights => weights, :contract_dims => contract_dims)
 end

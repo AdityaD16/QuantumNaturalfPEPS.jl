@@ -90,6 +90,7 @@ end
 
 Base.convert(::Type{Vector}, peps::AbstractPEPS; kwargs...) = vec(peps; kwargs...)
 function Base.vec(peps::AbstractPEPS; mask=peps.mask) # Flattens the tensors into a vector
+    hasqns(peps[1, 1]) && return vec_qn(peps; mask)  # QN path (Symmetric.jl)
     type = eltype(peps)
     θ = Vector{type}(undef, length(peps; mask))
     pos = 1
@@ -105,6 +106,7 @@ function Base.vec(peps::AbstractPEPS; mask=peps.mask) # Flattens the tensors int
 end
 
 function Base.length(peps::AbstractPEPS; mask=peps.mask)
+    hasqns(peps[1, 1]) && return length_qn(peps; mask)  # QN path (Symmetric.jl)
     x = 0
     for i in 1:size(peps, 1)
         for j in 1:size(peps, 2)
@@ -118,6 +120,7 @@ end
 
 function write!(peps::AbstractPEPS, θ::Vector{T}; reset_double_layer=true, mask=peps.mask) where T# Writes the vector θ into the tensors.
     @assert eltype(peps) == T "The type of the PEPS is $(eltype(peps)) and the type of the vector θ is $T. They must be the same type."
+    hasqns(peps[1, 1]) && return write_qn!(peps, θ; reset_double_layer, mask)  # QN path (Symmetric.jl)
     pos = 1
 
     for i in 1:size(peps, 1), j in 1:size(peps, 2)
@@ -282,9 +285,17 @@ function ITensors.siteind(peps::AbstractPEPS, i, j)
     if Lx == 1 && Ly == 1
         return firstind(peps[1, 1])
     elseif Lx == 1
-        return uniqueind(peps[i,j], peps[i,j%Ly + 1], peps[i, (j-2+Lx)%Ly+1])
+        # For a single-row PEPS, the site index is the one unique to this tensor
+        # that is not shared with either horizontal neighbour.
+        neighbors = ITensor[]
+        j > 1  && push!(neighbors, peps[i, j-1])
+        j < Ly && push!(neighbors, peps[i, j+1])
+        return uniqueind(peps[i,j], neighbors...)
     elseif Ly == 1
-        return uniqueind(peps[i,j], peps[i%Lx+1, j], peps[(i-2+Lx)%Lx+1, j])
+        neighbors = ITensor[]
+        i > 1  && push!(neighbors, peps[i-1, j])
+        i < Lx && push!(neighbors, peps[i+1, j])
+        return uniqueind(peps[i,j], neighbors...)
     end
     si = uniqueind(peps[i,j], peps[i%Lx+1, j], peps[(i-2+Lx)%Lx+1, j], peps[i,j%Ly + 1], peps[i, (j-2+Ly)%Ly+1])
     @assert si !== nothing
@@ -311,8 +322,8 @@ function inner_peps(psi::AbstractPEPS, psi2::AbstractPEPS)
 end
 
 function get_projector(::Type{S}, i::Int, index; shift=1) where {S<:Number}
-    @assert index.space >= i+shift "The dimension is $(index.space) but the requested index is $(i+shift)"
-    return onehot(S, index=>i+shift)
+    @assert dim(index) >= i+shift "The dimension is $(dim(index)) but the requested index is $(i+shift)"
+    return onehot(S, dag(index)=>i+shift)  # dag => dual arrow so it contracts with the site index (no-op for non-QN)
 end
 
 get_projector(i::Int, index; kwargs...) = get_projector(Int64, i, index; kwargs...)

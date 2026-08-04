@@ -1,5 +1,5 @@
 function generate_double_layer_env_row(peps_row, sites, maxdim; cutoff=1e-13)
-    bra = noprime.(prime.(conj(peps_row)), sites') # TODO: Improve this
+    bra = noprime.(prime.(dag.(peps_row)), sites') # dag (not conj) dualizes QN arrows; == conj for non-QN
     bra = MPO(bra)
     ket = MPO(peps_row)
 
@@ -10,7 +10,7 @@ function generate_double_layer_env_row(peps_row, sites, maxdim; cutoff=1e-13)
 end
 
 function generate_double_layer_env_row(peps_row, sites, peps_double_env, maxdim; cutoff=1e-13)
-    bra = noprime.(prime.(conj(peps_row)), sites') # TODO: Improve this
+    bra = noprime.(prime.(dag.(peps_row)), sites') # dag (not conj) dualizes QN arrows; == conj for non-QN
 
     E_mpo = MPO(peps_row .* bra)
     E_mps = contract(E_mpo, peps_double_env.env; maxdim, cutoff) # This costs (D^2 * maxdim) ^ 3, expensive!
@@ -96,8 +96,12 @@ function get_reduced_ρ(ket_j, bra_j, peps, i, j, E, sigma)
 end
 
 # samples from ρ_r and updates pc
-function sample_ρr(ρ_r)
-    k = size(ρ_r, 1) 
+# `mask[v+1] == true` forbids outcome v: its probability is zeroed BEFORE
+# renormalization, so the returned pc is the conditional of the constrained
+# proposal distribution p̃c (PRB 104, 235141, Sec. IV). The downstream
+# importance weights 2logψ - logpc correct for p̃c ≠ |ψ|² automatically.
+function sample_ρr(ρ_r, mask=nothing)
+    k = size(ρ_r, 1)
     T = real(eltype(ρ_r))
     p = Vector{T}(undef, k)
     for i in 1:k
@@ -108,6 +112,11 @@ function sample_ρr(ρ_r)
             @warn "ρ_r is not real $(ρ_r[i,i])"
         end
         # @assert im/(p[i] + 1e-10) < 1e-6 || im < 1e-12 "ρ_r is not real $(ρ_r[i,i])"
+    end
+    if mask !== nothing
+        @assert length(mask) == k "constraint mask length $(length(mask)) != local dim $k"
+        p[mask] .= zero(T)
+        sum(p) > 0 || error("sector constraint eliminated all outcomes (state has no weight left in the target sector)")
     end
     i = sample_p(p, normalize=true)
     return i-1, p[i]
@@ -129,9 +138,34 @@ function sample_p(probs::Vector{T}; normalize=true) where T<:Real
     return length(probs)  # fallback to last elementend
 end
 
+"""
+    sz_sector_counts(peps, Q=0)
+
+Per-species caps enforcing total Sz = `Q` for S=1/2 sites (sampled value 0 = ↑,
+1 = ↓): a configuration has Sz = Q iff #↑ = N/2 + Q and #↓ = N/2 - Q.
+Pass the result as `max_counts` to `get_sample` / `Ok_and_Ek` /
+`generate_Oks_and_Eks` to restrict sampling to that sector
+(constrained direct sampling, PRB 104, 235141, Sec. IV).
+"""
+function sz_sector_counts(peps::AbstractPEPS, Q::Real=0)
+    N = prod(size(peps))
+    n_up = N / 2 + Q
+    isinteger(n_up) && 0 <= n_up <= N ||
+        error("total Sz = $Q is not reachable with $N spin-1/2 sites")
+    return [Int(n_up), N - Int(n_up)]
+end
+
 # generates a sample of a given peps along with pc and the top environments
-function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix", timer=TimerOutput(), kwargs...)
+# max_counts: optional per-species caps (see sz_sector_counts); sum(max_counts)
+# must equal the number of sites so that hitting all caps == hitting the sector.
+function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix", timer=TimerOutput(),
+                    max_counts=nothing, kwargs...)
     S = Array{Int64}(undef, size(peps))
+    local counts
+    if max_counts !== nothing
+        @assert sum(max_counts) == prod(size(peps)) "sum(max_counts)=$(sum(max_counts)) must equal the number of sites $(prod(size(peps)))"
+        counts = zeros(Int, length(max_counts))
+    end
     
     env_top = Array{Environment}(undef, size(peps, 1)-1)
     sites = siteinds(peps)
@@ -142,7 +176,7 @@ function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix",
     for i in 1:size(peps, 1)
         sigma = 1
         ket = @timeit timer "env_sample" get_ket(peps, i, env_top)
-        bra = prime.(conj(ket[:]))
+        bra = prime.(dag.(ket[:])) # dag (not conj) dualizes QN arrows; == conj for non-QN
 
         # we then calculate the unsampled environment (in one row)
         E = @timeit timer "env_row" calculate_unsampled_Env_row(ket, bra, peps, i, sites[i, :])
@@ -153,13 +187,20 @@ function get_sample(peps::AbstractPEPS; mode::Symbol=:full, alg="densitymatrix",
             # calculate the phys_dimxphys_dim matrix from which we sample
             ρ_r, sigma = get_reduced_ρ(ket[j], bra[j], peps, i, j, E, sigma)
             
-            # sample from ρ_r
-            S[i, j], pc = sample_ρr(ρ_r)
+            # sample from ρ_r (masking species that hit their sector cap)
+            if max_counts === nothing
+                S[i, j], pc = sample_ρr(ρ_r)
+            else
+                S[i, j], pc = sample_ρr(ρ_r, counts .>= max_counts)
+                counts[S[i, j] + 1] += 1
+            end
             logpc += log(pc)
             
             # after the sampling of the current site, it is fixed and its contraction with the aleady sampled sites is stored in sigma
             site = siteind(peps, i, j)
-            sigma = sigma * get_projector(S[i, j], sites[i, j]) * get_projector(S[i, j], sites[i, j]') 
+            # ket leg (<Out>) wants the dag'd projector (get_projector dags internally);
+            # bra leg is dag'd (<In>), so double-dag its index to restore the native arrow.
+            sigma = sigma * get_projector(S[i, j], sites[i, j]) * get_projector(S[i, j], dag(sites[i, j]'))
             sigma ./= pc # we divide by pc to avoid numerical issues
         end
         

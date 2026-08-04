@@ -20,6 +20,7 @@ include("misc.jl")
 include("tensor_ops.jl")
 include("mps_ops.jl")
 include("PEPS.jl")
+include("Symmetric.jl")
 include("parameters.jl")
 include("Environments.jl")
 include("sampling.jl")
@@ -34,13 +35,14 @@ include("Properties/Properties.jl")
 include("Distributed/Distributed.jl")
 include("Test.jl")
 include("custom_ops.jl")
-
+# include("MinPII.jl")
 
 export PEPS
 export write!
 export Ok_and_Ek
 export generate_Oks_and_Eks
 export basis_change!
+# export minpii_step!, minpii_direction, minpii_batch, get_minpii_row
 export vec
 
 end
