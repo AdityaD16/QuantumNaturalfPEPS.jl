@@ -58,13 +58,15 @@ function get_ExpectationValues!(peps, O_op, Observable, logψ, logpc; it=100, ma
     for i in 1:it
         S, logpc[i], env_top = get_sample(peps; max_counts)
 
-        logψ[i], env_top, env_down, max_bond = get_logψ_and_envs(peps, S, env_top) 
+        logψ[i], env_top, env_down, max_bond = get_logψ_and_envs(peps, S, env_top)
         h_envs_r, h_envs_l = get_all_horizontal_envs(peps, env_top, env_down, S)
         fourb_envs_r, fourb_envs_l = get_all_4b_envs(peps, env_top, env_down, S)
-            
+
         logψ_flipped = Dict{Any, Number}()
         for j in 1:length(O_op)
             O_terms = QuantumNaturalGradient.get_precomp_sOψ_elems(O_op[j], S; get_flip_sites=true)
+            # the samples live in a fixed sector -> project the bra side too
+            max_counts === nothing || keep_sector_preserving!(O_terms, S, max_counts)
             Observable[i,j] = get_Ek(peps, O_op[j], env_top, env_down, S, logψ[i]; h_envs_r, h_envs_l, fourb_envs_r, fourb_envs_l, logψ_flipped, Ek_terms=O_terms)
         end
     end

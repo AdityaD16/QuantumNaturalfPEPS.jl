@@ -155,6 +155,52 @@ function sz_sector_counts(peps::AbstractPEPS, Q::Real=0)
     return [Int(n_up), N - Int(n_up)]
 end
 
+# Species-count change of one <S|O|S'> term, in the two key formats
+# get_precomp_sOψ_elems produces. Only the sites that actually change are listed
+# in a flip tuple, so unlisted sites cannot contribute to the delta.
+_sector_delta!(Δ, flip_term::Tuple, S) = begin           # ((site, s'_i), ...)
+    for (site, val) in flip_term
+        Δ[val + 1] += 1
+        Δ[S[site...] + 1] -= 1
+    end
+    Δ
+end
+_sector_delta!(Δ, S_flipped::AbstractArray, S) = begin   # the flipped sample itself
+    for v in S_flipped
+        Δ[v + 1] += 1
+    end
+    for v in S
+        Δ[v + 1] -= 1
+    end
+    Δ
+end
+
+"""
+    keep_sector_preserving!(Ek_terms, S, max_counts)
+
+Drop the off-diagonal terms `<S|O|S'>` whose flipped configuration S' leaves the
+sector that constrained sampling (`max_counts`) restricts S to.
+
+Sector-restricted sampling makes the weighted average over samples
+`Σ_{S∈sector} |ψ(S)|² O_loc(S) / Σ_{S∈sector} |ψ(S)|²`. Letting O_loc sum over
+every S' turns that into `<ψ|P O|ψ> / <ψ|P|ψ>` -- the projector on the bra side
+only, which is not the expectation value of any state and is not even real in
+general. Restricting S' to the sector as well gives `<Pψ|O|Pψ> / <Pψ|Pψ>`.
+
+The sector is fixed by the per-species counts, so a term survives iff its flips
+leave every count unchanged. Operators that commute with P (the Hamiltonian, any
+charge-conserving observable) keep all their terms and are unaffected; operators
+that do not (single-site Sx, Sy) correctly collapse to zero.
+"""
+function keep_sector_preserving!(Ek_terms, S, max_counts)
+    Δ = zeros(Int, length(max_counts))
+    for key in collect(keys(Ek_terms))
+        key === () && continue          # diagonal term, always in the sector
+        all(iszero, _sector_delta!(fill!(Δ, 0), key, S)) || delete!(Ek_terms, key)
+    end
+    return Ek_terms
+end
+
 # generates a sample of a given peps along with pc and the top environments
 # max_counts: optional per-species caps (see sz_sector_counts); sum(max_counts)
 # must equal the number of sites so that hitting all caps == hitting the sector.
