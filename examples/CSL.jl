@@ -72,57 +72,18 @@ peps = PEPS(params[:T], hilbert;
 # Multiply the spectrum of the PEPS by a power-law factor to make it contractible
 QuantumNaturalfPEPS.multiply_algebraic_spectrum!(peps, params[:α_init])
 
-# Define Helper Functions for P Operators
-function P_matrix(factor)
-    # Create an 8-index tensor and fill specific indices with the factor.
-    P = zeros(ComplexF64, 2, 2, 2, 2, 2, 2, 2, 2)
-    for i1 in 1:2, i2 in 1:2, i3 in 1:2, i4 in 1:2
-        P[i1, i2, i2, i3, i3, i4, i4, i1] = factor
-    end
-    return P
-end
+# ---------------------------------------------------------------------------
+# Hamiltonian:  J1 S.S  +  J2 S.S  +  i*lambda*(P - P^dagger)   [PRB 111, 195120 Eq. 26]
+# ---------------------------------------------------------------------------
+# Built by the package rather than by local copies of the helpers: the plaquette
+# operator is easy to get wrong (index ordering, the inverse cycle, and keeping
+# TensorOperatorSum's precomputed `terms` in sync), and every such mistake makes
+# the chiral term silently evaluate to zero, i.e. a plain J1-J2 run.
+ham_op = QuantumNaturalfPEPS.hamiltonain_CSL(hilbert, params[:J1], params[:J2], params[:lambda])
 
-function P_operator(hilbert, spins; P=nothing, factor=1)
-    # Generate the ITensor operator for a given set of spins.
-    if P === nothing
-        P = P_matrix(factor)
-    end
-    inds = [hilbert[s]' for s in spins]  # use prime on physical indices
-    append!(inds, [hilbert[s] for s in spins])
-    return ITensor(P, inds)
-end
-
-# Helper function to add four-site P operators to the Hamiltonian
-function add_P_operators!(ham_op, hilbert, Lx, Ly, factor)
-    sites = Int[]
-    for i in 1:(Lx-1)
-        for j in 1:(Ly-1)
-            # Define the sites of the plaquette
-            push!(sites, i     + (j-1)*Lx)
-            push!(sites, i+1   + (j-1)*Lx)
-            push!(sites, i+1   + (j)*Lx)
-            push!(sites, i     + (j)*Lx)
-            # Create and add the operator
-            P_op = P_operator(hilbert, sites; factor=factor)
-            push!(ham_op.tensors, P_op)
-            push!(ham_op.sites, copy(sites))
-            empty!(sites)
-        end
-    end
-end
-
-# Construct the Hamiltonian (J1 & J2 Interactions)
-ham_J1J2 = QuantumNaturalfPEPS.hamiltonain_J1J2(params[:J1]/4, params[:J2]/4, size(peps)...)
-
-# Create the tensor operator for the Hamiltonian
-ham_op = QNG.TensorOperatorSum(ham_J1J2, hilbert)
-
-
-
-# Add P operators with both positive and negative imaginary factors
-add_P_operators!(ham_op, hilbert, params[:Lx], params[:Ly], im * params[:lambda])
-add_P_operators!(ham_op, hilbert, params[:Lx], params[:Ly], -im * params[:lambda])
-
+n_chiral = 2 * (params[:Lx] - 1) * (params[:Ly] - 1)
+@assert length(ham_op.terms) == length(ham_op.tensors)   # estimator reads `terms`
+println("Hamiltonian: $(length(ham_op.terms)) terms ($n_chiral chiral), eltype $(eltype(ham_op))")
 
 # Setup for Evolution: Timer, Operators, Integrator, Solver, Logger, etc.
 timer = TimerOutput()
