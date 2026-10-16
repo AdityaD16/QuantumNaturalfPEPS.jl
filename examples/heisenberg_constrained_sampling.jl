@@ -6,10 +6,21 @@ using Random
 using ITensors, ITensorMPS
 using QuantumNaturalGradient
 using QuantumNaturalfPEPS
+using Distributed
 const QNP = QuantumNaturalfPEPS
 
+# Initialize 2 processes with 8 threads each, assuming you have a 16 core cpu
+nr_procs, nr_threads = 2, 8
+addprocs(nr_procs, exeflags="-t $nr_threads")
+
+@everywhere begin
+    using QuantumNaturalfPEPS
+    using LinearAlgebra
+    BLAS.set_num_threads(1) # Each thread should only use one Blas thread
+end
+BLAS.set_num_threads(16) # For computing the double layers
+
 Random.seed!(1)
-BLAS.set_num_threads(1) # each sampling thread uses one BLAS thread
 
 # Simulation Parameters
 params = Dict(
@@ -59,7 +70,7 @@ max_counts = QNP.sz_sector_counts(peps, params[:Sz])
 println("Sampling in the total Sz = $(params[:Sz]) sector, max_counts = $max_counts")
 
 # Generate Operators for QNG; max_counts is forwarded to every sample drawn
-Oks_and_Eks = QNP.generate_Oks_and_Eks(peps, ham; threaded=true, max_counts)
+Oks_and_Eks = QNP.generate_Oks_and_Eks(peps, ham; threaded=true, multiproc=true, max_counts)
 
 # Setup the Integrator and Solver
 integrator = QuantumNaturalGradient.Euler(lr=params[:lr])
